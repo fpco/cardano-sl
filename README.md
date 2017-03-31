@@ -1,5 +1,7 @@
 # Review of cardano-sl project
 
+View [progress here](https://fpco.github.io/cardano-sl/).
+
 This is the `master` branch, it contains a README explaining how review works.
 
 The second branch is [`upstream`](https://github.com/fpco/cardano-sl/tree/upstream), which contains a recent version of the cardano-sl master branch.
