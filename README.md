@@ -1,6 +1,6 @@
 # Review of cardano-sl project
 
-View [progress here](https://fpco.github.io/cardano-sl/).
+View [progress report here](https://fpco.github.io/cardano-sl/).
 
 This is the `master` branch, it contains a README explaining how review works.
 
