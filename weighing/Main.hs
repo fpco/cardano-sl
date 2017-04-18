@@ -47,6 +47,12 @@ main =
               (stakesDistr 1 poorPeople 500000000000 0.99)
             | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
             ]
+          ,  [ func
+               ("genesisUtxo: " ++ show poorPeople)
+               genesisUtxo
+               (stakesDistr 1 poorPeople 500000000000 0.99)
+             | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
+             ]
           ]))
   where
     stakesDistr richs poors coins richShare =
@@ -173,19 +179,6 @@ bitcoinDistributionImpl ratio coins (coinIdx, coin) =
     toAddValMin = coin `divCoin` toAddNum
     toAddValMax = coin `unsafeAddCoin`
                   (toAddValMin `unsafeMulCoin` (toAddNum - 1))
-
--- | Genesis 'Utxo'.
-genesisUtxoHashMap :: StakeDistribution -> HashMap TxIn TxOutAux
-genesisUtxoHashMap sd =
-    HM.fromList . zipWith zipF (stakeDistribution sd) $
-    genesisAddresses <> tailAddresses
-  where
-    zipF (coin, distr) addr =
-        ( TxIn (unsafeHash addr) 0
-        , TxOutAux (TxOut addr coin) distr
-        )
-    tailAddresses = map (makePubKeyAddress . fst . generateGenesisKeyPair)
-        [Const.genesisN ..]
 
 -- | Genesis 'Utxo'.
 genesisUtxo :: StakeDistribution -> Utxo
