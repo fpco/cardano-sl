@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
@@ -11,7 +12,8 @@
 module Main where
 
 
-import           Crypto.Hash            (Blake2b_224, Digest, SHA3_256, hashlazy)
+import qualified Data.ByteArray       as ByteArray
+import           Crypto.Hash            (Blake2b_224, Digest, SHA1, SHA3_256, hashlazy)
 import qualified Crypto.Hash            as CryptoHash
 import           Data.ByteArray         (ByteArrayAccess)
 import           Data.ByteString.Base58 (Alphabet (..), bitcoinAlphabet, decodeBase58,
@@ -83,7 +85,7 @@ main =
             | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
             ]
           ,  [ func
-               ("genesisUtxoModified: " ++ show poorPeople)
+               ("genesisUtxo SHA256: " ++ show poorPeople)
                genesisUtxoModified
                (stakesDistr 1 poorPeople 500000000000 0.99)
              | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
@@ -246,8 +248,8 @@ genesisLeaders = followTheSatoshi genesisSeed
 data Address'
     = PubKeyAddress'
           {
-           -- addrKeyHash      :: {-# UNPACK  #-}!(AddressHash PublicKey)
-           addrPkAttributes :: !(Attributes AddrPkAttrs)
+           addrKeyHash      :: !(AddressHash' PublicKey)
+           ,addrPkAttributes :: !(Attributes AddrPkAttrs)
           }
   deriving (Generic)
 instance NFData Address'
@@ -267,11 +269,14 @@ genesisUtxoModified sd =
 -- | A function for making an address from PublicKey
 makePubKeyAddress' :: Bi PublicKey => PublicKey -> Address'
 makePubKeyAddress' key =
-    PubKeyAddress' -- (addressHash key)
+    PubKeyAddress' (addressHash' key)
                    (mkAttributes (AddrPkAttrs Nothing))
 
 addressHash :: Bi a => a -> AddressHash a
 addressHash = unsafeAddressHash
+
+addressHash' :: Bi a => a -> AddressHash' a
+addressHash' = unsafeAddressHash'
 
 unsafeAddressHash :: Bi a => a -> AddressHash b
 unsafeAddressHash = AbstractHash . secondHash . firstHash
@@ -281,5 +286,19 @@ unsafeAddressHash = AbstractHash . secondHash . firstHash
     secondHash :: Digest SHA3_256 -> Digest Blake2b_224
     secondHash = CryptoHash.hash
 
+type AddressHash' = AbstractHash' SHA1
+
+unsafeAddressHash' :: Bi a => a -> AddressHash' b
+unsafeAddressHash' = AbstractHash' . firstHash
+  where
+    firstHash :: Bi a => a -> Digest SHA1
+    firstHash = hashlazy . Bi.encode
+
 genesisDelegation :: HashMap StakeholderId [StakeholderId]
 genesisDelegation = mempty
+
+-- | Hash wrapper with phantom type for more type-safety.
+-- Made abstract in order to support different algorithms in
+-- different situations
+newtype AbstractHash' algo a = AbstractHash' (Digest algo)
+    deriving (Show, Eq, Ord, ByteArray.ByteArrayAccess, Generic, NFData)
