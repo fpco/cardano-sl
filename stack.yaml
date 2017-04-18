@@ -11,6 +11,7 @@ packages:
 - infra
 - db
 - lrc
+- weighing
 
 - location:
     git: https://github.com/serokell/acid-state.git
@@ -75,7 +76,7 @@ extra-deps:
 - serokell-util-0.1.5.0
 - pvss-0.1
 - base58-bytestring-0.1.0
-- log-warper-1.1.1      
+- log-warper-1.1.1
 - concurrent-extra-0.7.0.10       # not yet in lts-8
 - derive-2.6.2
 - purescript-bridge-0.8.0.1
@@ -91,10 +92,10 @@ extra-deps:
 apply-ghc-options: everything
 
 # If you find it too restrictive, you can use `util-scripts/build.sh' script
-ghc-options:
-  cardano-sl-core:   -Werror
-  cardano-sl-db:     -Werror
-  cardano-sl-infra:  -Werror
-  cardano-sl-lrc:    -Werror
-  cardano-sl-update: -Werror
-  cardano-sl:        -Werror
+# ghc-options:
+#   cardano-sl-core:   -Werror
+#   cardano-sl-db:     -Werror
+#   cardano-sl-infra:  -Werror
+#   cardano-sl-lrc:    -Werror
+#   cardano-sl-update: -Werror
+#   cardano-sl:        -Werror

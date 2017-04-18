@@ -34,6 +34,12 @@ Flag with-explorer
 
   description: Build with explorer
 
+executable weighing
+  hs-source-dirs: weigh
+  build-depends: base, weigh, binary, bytestring, deepseq
+  ghc-options: -O2
+  main-is: Main.hs
+
 library
   exposed-modules:      Pos.Aeson
                         Pos.Binary
@@ -126,7 +132,7 @@ library
     exposed-modules:    Pos.Wallet
   if flag(with-wallet) && flag(with-web)
     exposed-modules:    Pos.Wallet.Web
-  other-modules:        Paths_cardano_sl
+  exposed-modules:      Paths_cardano_sl
 
                         Pos.Aeson.CompileConfig
 
@@ -349,7 +355,7 @@ library
                         Pos.Util.Undefined
 
   -- Explorer (TODO: move into cardano-explorer)
-  other-modules:        Pos.Binary.Explorer
+  exposed-modules:        Pos.Binary.Explorer
                         Pos.Explorer.Core
                         Pos.Explorer.Core.Types
                         Pos.Explorer.Txp
@@ -362,14 +368,14 @@ library
                         Pos.Explorer.DB
 
   if flag(with-web)
-    other-modules:      Pos.Aeson.Crypto
+    exposed-modules:      Pos.Aeson.Crypto
                         Pos.Aeson.Types
                         Pos.Web.Api
                         Pos.Web.Doc
                         Pos.Web.Server
                         Pos.Web.Types
   if flag(with-wallet)
-    other-modules:      Pos.Wallet.WalletMode
+    exposed-modules:      Pos.Wallet.WalletMode
                         Pos.Wallet.Launcher
                         Pos.Wallet.Launcher.Runner
                         Pos.Wallet.Launcher.Param
@@ -388,7 +394,7 @@ library
                         Pos.Wallet.Context.Holder
                         Pos.Wallet.Update
   if (flag(with-wallet) && flag(with-web))
-    other-modules:      Pos.Aeson.ClientTypes
+    exposed-modules:      Pos.Aeson.ClientTypes
                         Pos.Wallet.Web.ClientTypes
                         Pos.Wallet.Web.Api
                         Pos.Wallet.Web.Doc
