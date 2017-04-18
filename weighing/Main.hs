@@ -10,6 +10,7 @@ module Main where
 
 import           Control.DeepSeq
 import           Data.Default (Default (..))
+import qualified Data.HashMap.Strict as HM
 import           Data.List (genericLength, genericReplicate)
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
@@ -39,12 +40,20 @@ import           Weigh
 main =
   mainWith
     (sequence
-       [ func
-         ("genesisUtxo: " ++ show poorPeople)
-         genesisUtxo
-         (stakesDistr 1 poorPeople 500000000000 0.99)
-       | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
-       ])
+       (concat
+          [ [ func
+              ("genesisUtxo: " ++ show poorPeople)
+              genesisUtxo
+              (stakesDistr 1 poorPeople 500000000000 0.99)
+            | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
+            ]
+          ,  [ func
+               ("genesisUtxoHashMap: " ++ show poorPeople)
+               genesisUtxoHashMap
+               (stakesDistr 1 poorPeople 500000000000 0.99)
+             | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
+             ]
+          ]))
   where
     stakesDistr richs poors coins richShare =
       checkConsistency $ RichPoorStakes {..}
@@ -170,6 +179,19 @@ bitcoinDistributionImpl ratio coins (coinIdx, coin) =
     toAddValMin = coin `divCoin` toAddNum
     toAddValMax = coin `unsafeAddCoin`
                   (toAddValMin `unsafeMulCoin` (toAddNum - 1))
+
+-- | Genesis 'Utxo'.
+genesisUtxoHashMap :: StakeDistribution -> HashMap TxIn TxOutAux
+genesisUtxoHashMap sd =
+    HM.fromList . zipWith zipF (stakeDistribution sd) $
+    genesisAddresses <> tailAddresses
+  where
+    zipF (coin, distr) addr =
+        ( TxIn (unsafeHash addr) 0
+        , TxOutAux (TxOut addr coin) distr
+        )
+    tailAddresses = map (makePubKeyAddress . fst . generateGenesisKeyPair)
+        [Const.genesisN ..]
 
 -- | Genesis 'Utxo'.
 genesisUtxo :: StakeDistribution -> Utxo

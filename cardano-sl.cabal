@@ -34,12 +34,6 @@ Flag with-explorer
 
   description: Build with explorer
 
-executable weighing
-  hs-source-dirs: weigh
-  build-depends: base, weigh, binary, bytestring, deepseq
-  ghc-options: -O2
-  main-is: Main.hs
-
 library
   exposed-modules:      Pos.Aeson
                         Pos.Binary
