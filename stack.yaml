@@ -14,6 +14,10 @@ packages:
 - weighing
 
 - location:
+    git: https://github.com/fpco/weigh.git
+    commit: 80d763ba128de895a14dced4480cf7b11be3cece
+
+- location:
     git: https://github.com/serokell/acid-state.git
     commit: 95fce1dbada62020a0b2d6aa2dd7e88eadd7214b
   extra-dep: true

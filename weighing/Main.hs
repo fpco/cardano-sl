@@ -45,14 +45,8 @@ main =
               ("genesisUtxo: " ++ show poorPeople)
               genesisUtxo
               (stakesDistr 1 poorPeople 500000000000 0.99)
-            | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
+            | poorPeople <- [1, 10, 100, 1000, 10000, 100000, 1000000]
             ]
-          ,  [ func
-               ("genesisUtxoHashMap: " ++ show poorPeople)
-               genesisUtxoHashMap
-               (stakesDistr 1 poorPeople 500000000000 0.99)
-             | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
-             ]
           ]))
   where
     stakesDistr richs poors coins richShare =
