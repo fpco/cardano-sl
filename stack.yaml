@@ -68,8 +68,9 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/chrisdone/cryptonite.git
-    commit: cryptonite-v0.22
+    commit: 4f988181c7e2f875938b9c1d3c61c0ab70997bf2
   extra-dep: true
+# - ../../cryptonite
 
 nix:
   shell-file: shell.nix
