@@ -84,12 +84,6 @@ main =
               (stakesDistr 1 poorPeople 500000000000 0.99)
             | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
             ]
-          ,  [ func
-               ("genesisUtxo SHA256: " ++ show poorPeople)
-               genesisUtxoModified
-               (stakesDistr 1 poorPeople 500000000000 0.99)
-             | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
-             ]
           ]))
   where
     stakesDistr richs poors coins richShare =
