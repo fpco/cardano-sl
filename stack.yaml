@@ -75,6 +75,7 @@ nix:
   shell-file: shell.nix
 
 extra-deps:
+- Crypto-4.2.5.1
 - universum-0.3
 - time-units-1.0.0
 - serokell-util-0.1.5.0

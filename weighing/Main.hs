@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
@@ -11,22 +14,26 @@
 module Main where
 
 
-import           Crypto.Hash            (Blake2b_224, Digest, SHA3_256, hashlazy)
-import qualified Crypto.Hash            as CryptoHash
-import           Data.ByteArray         (ByteArrayAccess)
+import qualified Crypto.Hash.SHA1
+import qualified Data.Digest.SHA1
+
+import           Crypto.Hash (Blake2b_224, Digest, SHA3_256, hashlazy, hash)
+import qualified Crypto.Hash as CryptoHash
+import           Data.ByteArray (ByteArrayAccess)
 import           Data.ByteString.Base58 (Alphabet (..), bitcoinAlphabet, decodeBase58,
                                          encodeBase58)
-import qualified Data.ByteString.Lazy   as BSL (fromStrict, toStrict)
-import           Data.Hashable          (Hashable (..))
-import           Data.Text.Buildable    (Buildable)
-import qualified Data.Text.Buildable    as Buildable
-import           Formatting             (Format, bprint, build, later, (%))
-import           Serokell.Util.Base16   (base16F)
+import qualified Data.ByteString.Lazy as BSL (fromStrict, toStrict)
+import qualified Data.ByteString.Lazy as L
+import           Data.Hashable (Hashable (..))
+import           Data.Text.Buildable (Buildable)
+import qualified Data.Text.Buildable as Buildable
+import           Formatting (Format, bprint, build, later, (%))
+import           Serokell.Util.Base16 (base16F)
 import           Universum
 
-import           Pos.Binary.Class       (Bi)
-import qualified Pos.Binary.Class       as Bi
-import           Pos.Binary.Crypto      ()
+import           Pos.Binary.Class (Bi)
+import qualified Pos.Binary.Class as Bi
+import           Pos.Binary.Crypto ()
 import           Pos.Core.Types         (AddrPkAttrs (..), Address (..), AddressHash,
                                          Script, StakeholderId)
 import           Pos.Crypto             (AbstractHash (AbstractHash), PublicKey,
@@ -37,7 +44,7 @@ import           Pos.Crypto.HD          (HDAddressPayload, HDPassphrase,
 import           Pos.Data.Attributes
 
 
-import           Pos.Data.Attributes    (mkAttributes)
+import           Pos.Data.Attributes (mkAttributes)
 
 import           Pos.Core.Types         (AddrPkAttrs (..), Address (..), AddressHash,
                                          Script, StakeholderId)
@@ -80,13 +87,13 @@ main =
               ("genesisUtxo: " ++ show poorPeople)
               genesisUtxo
               (stakesDistr 1 poorPeople 500000000000 0.99)
-            | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
+            | poorPeople <- [1, 10, 100, 1000, 10000, 100000, 1000000]
             ]
           ,  [ func
                ("genesisUtxoModified: " ++ show poorPeople)
                genesisUtxoModified
                (stakesDistr 1 poorPeople 500000000000 0.99)
-             | poorPeople <- [1, 10, 100, 1000, 10000, 100000]
+             | poorPeople <- [1, 10, 100, 1000, 10000, 100000, 1000000]
              ]
           ]))
   where
@@ -246,7 +253,7 @@ genesisLeaders = followTheSatoshi genesisSeed
 data Address'
     = PubKeyAddress'
           {
-           -- addrKeyHash      :: {-# UNPACK  #-}!(AddressHash PublicKey)
+           addrKeyHash      :: !(AddressHash' PublicKey),
            addrPkAttributes :: !(Attributes AddrPkAttrs)
           }
   deriving (Generic)
@@ -267,19 +274,16 @@ genesisUtxoModified sd =
 -- | A function for making an address from PublicKey
 makePubKeyAddress' :: Bi PublicKey => PublicKey -> Address'
 makePubKeyAddress' key =
-    PubKeyAddress' -- (addressHash key)
+    PubKeyAddress' (dummyHash key)
                    (mkAttributes (AddrPkAttrs Nothing))
 
-addressHash :: Bi a => a -> AddressHash a
-addressHash = unsafeAddressHash
+type AddressHash' = AbstractHash' Blake2b_224
 
-unsafeAddressHash :: Bi a => a -> AddressHash b
-unsafeAddressHash = AbstractHash . secondHash . firstHash
-  where
-    firstHash :: Bi a => a -> Digest SHA3_256
-    firstHash = hashlazy . Bi.encode
-    secondHash :: Digest SHA3_256 -> Digest Blake2b_224
-    secondHash = CryptoHash.hash
+newtype AbstractHash' algo a = AbstractHash' Data.Digest.SHA1.Word160
+    deriving (Show, Eq, Ord, Generic, NFData)
+deriving instance Ord    Data.Digest.SHA1.Word160
+deriving instance NFData    Data.Digest.SHA1.Word160
+deriving instance Generic    Data.Digest.SHA1.Word160
 
-genesisDelegation :: HashMap StakeholderId [StakeholderId]
-genesisDelegation = mempty
+dummyHash :: Bi e => e -> (AddressHash' PublicKey)
+dummyHash = AbstractHash' . Data.Digest.SHA1.hash . L.unpack . Bi.encode
