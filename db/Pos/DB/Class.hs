@@ -108,7 +108,7 @@ dbTagToLens MiscDB       = miscDB
 
 -- | Key-value type family encapsulating the iterator (something we
 -- can iterate on) functionality.
-class DBIteratorClass i where
+class (Show (IterKey i), Show (IterValue i)) => DBIteratorClass i where
     type IterKey   i :: *
     type IterValue i :: *
     iterKeyPrefix :: ByteString

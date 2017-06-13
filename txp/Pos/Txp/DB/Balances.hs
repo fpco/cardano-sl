@@ -26,15 +26,16 @@ module Pos.Txp.DB.Balances
        , sanityCheckBalances
        ) where
 
-import           Control.Monad.Trans.Resource (ResourceT)
-import           Data.Conduit                 (Source, mapOutput, runConduitRes, (.|))
+import           Control.Monad.Trans.Resource (ResourceT, runResourceT)
+import           Data.Conduit                 (Source, mapOutput, runConduit,
+                                               runConduitRes, (.|))
 import qualified Data.Conduit.List            as CL
 import qualified Data.HashMap.Strict          as HM
 import qualified Data.Text.Buildable
 import qualified Database.RocksDB             as Rocks
 import           Formatting                   (bprint, bprint, sformat, (%))
 import           Serokell.Util                (Color (Red), colorize)
-import           System.Wlog                  (WithLogger, logError)
+import           System.Wlog                  (WithLogger, logDebug, logError)
 import           Universum
 
 import           Pos.Binary.Class             (encodeStrict)
@@ -138,10 +139,16 @@ sanityCheckBalances
     :: (MonadDBRead m, WithLogger m)
     => m ()
 sanityCheckBalances = do
+    logDebug "sanityCheckBalances running conduit"
     calculatedTotalStake <-
-        runConduitRes $
-        mapOutput snd (dbIterSource GStateDB (Proxy @BalanceIter)) .|
-        CL.fold unsafeAddCoin (mkCoin 0)
+        runResourceT $ do
+          logDebug "We're inside runResourceT, i will run conduit"
+          v <- runConduit $
+              mapOutput snd (dbIterSource GStateDB (Proxy @BalanceIter)) .|
+              CL.fold unsafeAddCoin (mkCoin 0)
+          logDebug "Conduit done, returning value"
+          pure v
+    logDebug "sanityCheckBalances running conduit DONE"
 
     totalStake <- getRealTotalStake
     let fmt =

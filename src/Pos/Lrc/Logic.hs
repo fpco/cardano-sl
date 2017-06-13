@@ -51,21 +51,26 @@ findDelegatedRichmen thr = do
 -- and compute using one pass by stake DB and one pass by delegation DB.
 findAllRichmenMaybe
     :: forall m.
-       (MonadDBRead m)
+       (MonadDBRead m, MonadIO m)
     => Maybe Coin -- ^ Eligibility threshold (optional)
     -> Maybe Coin -- ^ Delegation threshold (optional)
     -> Sink (StakeholderId, Coin) m (RichmenStake, RichmenStake)
 findAllRichmenMaybe maybeT maybeTD
     | Just t <- maybeT
     , Just tD <- maybeTD = do
+        putText "findAllRichmenMaybe 1"
         let mn = min t tD
         richmenMin <- findRichmenStake mn
         let richmen = HM.filter (>= t) richmenMin
         let precomputedD = HM.filter (>= tD) richmenMin
         richmenD <- lift $ findDelRichUsingPrecomp precomputedD tD
         pure (richmen, richmenD)
-    | Just t <- maybeT = (,mempty) <$> findRichmenStake t
-    | Just tD <- maybeTD = (mempty,) <$> findDelegatedRichmen tD
+    | Just t <- maybeT = do
+          putText "findAllRichmenMaybe 2"
+          (,mempty) <$> findRichmenStake t
+    | Just tD <- maybeTD = do
+          putText "findAllRichmenMaybe 3"
+          (mempty,) <$> findDelegatedRichmen tD
     | otherwise = pure (mempty, mempty)
 
 data RichmenType

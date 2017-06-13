@@ -12,8 +12,10 @@ module Pos.DB.Redirect
 
 import           Universum
 
+import           Control.Concurrent           (threadDelay)
+import           Control.Exception            (SomeException)
 import           Control.Monad.Trans.Identity (IdentityT (..))
-import           Control.Monad.Trans.Resource (MonadResource)
+import           Control.Monad.Trans.Resource (MonadResource, ResourceT)
 import qualified Data.ByteString              as BS (isPrefixOf)
 import           Data.Coerce                  (coerce)
 import           Data.Conduit                 (ConduitM, Source, bracketP, yield)
@@ -30,6 +32,7 @@ import           Pos.DB.Error                 (DBError (DBMalformed))
 import           Pos.DB.Functions             (rocksDelete, rocksGetBytes, rocksPutBytes)
 import           Pos.DB.Functions             (rocksDecodeMaybe, rocksDecodeMaybeWP)
 import           Pos.DB.Types                 (DB (..))
+import qualified Pos.Util.Concurrent.RWLock   as RWL
 import           Pos.Util.Util                (maybeThrow)
 
 
@@ -65,34 +68,53 @@ instance
 -- | Conduit source built from rocks iterator.
 iteratorSource ::
        forall m i.
-       ( MonadResource m
-       , MonadRealDB m
+       ( MonadRealDB m
        , DBIteratorClass i
        , Bi (IterKey i)
        , Bi (IterValue i)
        )
     => DBTag
     -> Proxy i
-    -> Source m (IterType i)
+    -> Source (ResourceT m) (IterType i)
 iteratorSource tag _ = do
-    DB {..} <- view (dbTagToLens tag) <$> lift getNodeDBs
-    bracketP (Rocks.createIter rocksDB rocksReadOpts) Rocks.releaseIter $ \it -> do
-        lift $ Rocks.iterSeek it (iterKeyPrefix @i)
-        produce it
-  where
-    produce :: Rocks.Iterator -> Source m (IterType i)
+    putText $ ("Iterator source, prefix " <> show (iterKeyPrefix @i))
+    DB{..} <- view (dbTagToLens tag) <$> lift getNodeDBs
+
+    let createIter = do
+            putText "Creating iter"
+            i <- Rocks.createIter rocksDB rocksReadOpts
+            putText $ "Creating iter done"
+            pure i
+    let releaseIter i = do
+            putText $ "Releasing iter"
+            Rocks.releaseIter i
+            putText $ "Releasing iter done"
+    let onExc (e :: SomeException) = do
+            putText "whoops! SomeException arised in redirect!"
+    let action iter = do
+            putText $ "SEEKING ITERATOR"
+            Rocks.iterSeek iter (iterKeyPrefix @i)
+            putText $ "SEEKING DONE, producing and waiting"
+            produce iter `catch` onExc
+            liftIO $ threadDelay $ 1000000 --1s !!!!!
+            putText $ "PRODUCED "
+    bracketP createIter releaseIter $ \i -> (action i `catch` onExc)
+ where
+    produce :: Rocks.Iterator -> Source (ResourceT m) (IterType i)
     produce it = do
+        putText "ITERINTRY"
         entryStr <- processRes =<< Rocks.iterEntry it
         case entryStr of
             Nothing -> pass
             Just e -> do
+                putText $ "YIELD " <> show e
                 yield e
                 Rocks.iterNext it
                 produce it
     processRes ::
            (Bi (IterKey i), Bi (IterValue i))
         => Maybe (ByteString, ByteString)
-        -> ConduitM () (IterType i) m (Maybe (IterType i))
+        -> ConduitM () (IterType i) (ResourceT m) (Maybe (IterType i))
     processRes Nothing = pure Nothing
     processRes (Just (key, val))
         | BS.isPrefixOf (iterKeyPrefix @i) key = do
