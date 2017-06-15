@@ -26,9 +26,7 @@ module Pos.Txp.DB.Balances
        , sanityCheckBalances
        ) where
 
-import           Control.Monad.Trans.Resource (ResourceT, runResourceT)
-import           Data.Conduit                 (Source, mapOutput, runConduit,
-                                               runConduitRes, (.|))
+import           Data.Conduit                 (Source, runConduit, (.|))
 import qualified Data.Conduit.List            as CL
 import qualified Data.HashMap.Strict          as HM
 import qualified Data.Text.Buildable
@@ -124,12 +122,13 @@ putTotalFtsStake = gsPutBi ftsSumKey
 
 -- | Run iterator over effective balances.
 balanceSource
-    :: forall m . (MonadDBRead m)
-    => Source (ResourceT m) (IterType BalanceIter)
-balanceSource =
-    ifM (lift isBootstrapEra)
-        (dbIterSource GStateDB (Proxy @BalanceIter))
-        (CL.sourceList $ HM.toList genesisBalances)
+    :: forall m a . (MonadDBRead m)
+    => (Source m (IterType BalanceIter) -> m a)
+    -> m a
+balanceSource withSrc =
+    ifM isBootstrapEra
+        (dbIterSource GStateDB (Proxy @BalanceIter) withSrc)
+        (withSrc (CL.sourceList $ HM.toList genesisBalances))
 
 ----------------------------------------------------------------------------
 -- Sanity checks
@@ -140,14 +139,15 @@ sanityCheckBalances
     => m ()
 sanityCheckBalances = do
     logDebug "sanityCheckBalances running conduit"
-    calculatedTotalStake <-
-        runResourceT $ do
-          logDebug "We're inside runResourceT, i will run conduit"
-          v <- runConduit $
-              mapOutput snd (dbIterSource GStateDB (Proxy @BalanceIter)) .|
-              CL.fold unsafeAddCoin (mkCoin 0)
-          logDebug "Conduit done, returning value"
-          pure v
+    calculatedTotalStake <- do
+        logDebug "We're inside runResourceT, i will run conduit"
+        v <- dbIterSource GStateDB (Proxy @BalanceIter) $ \src ->
+             runConduit
+           $ src
+          .| CL.map snd
+          .| CL.fold unsafeAddCoin (mkCoin 0)
+        logDebug "Conduit done, returning value"
+        pure v
     logDebug "sanityCheckBalances running conduit DONE"
 
     totalStake <- getRealTotalStake

@@ -29,7 +29,7 @@ import           Control.Concurrent.STM       (newEmptyTMVarIO, newTBQueueIO)
 import           Control.Lens                 (each, to, _tail)
 import           Control.Monad.Fix            (MonadFix)
 import           Control.Monad.Trans.Control  (MonadBaseControl)
-import           Data.Conduit                 (runConduitRes, (.|))
+import           Data.Conduit                 (runConduit, (.|))
 import           Data.Default                 (def)
 import           Data.Tagged                  (Tagged (..), untag)
 import qualified Data.Time                    as Time
@@ -371,8 +371,9 @@ runCH allWorkersNum discoveryCtx params@NodeParams {..} sscNodeContext db act = 
         if Const.isDevelopment
         then pure $ genesisLeaders npCustomUtxo
         else flip Ether.runReaderT' db $ runDBPureRedirect $
-             runConduitRes $
-             balanceSource .| followTheSatoshiM genesisSeed genesisFakeTotalStake
+             balanceSource $ \src ->
+             runConduit $
+             src .| followTheSatoshiM genesisSeed genesisFakeTotalStake
     ucMemState <- newMemVar
     ucDownloadingUpdates <- newTVarIO mempty
     -- TODO synchronize the NodeContext peers var with whatever system

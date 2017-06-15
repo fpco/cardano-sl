@@ -68,11 +68,9 @@ import           Control.Lens                   (ALens', Getter, Getting, cloneL
 import           Control.Monad.Base             (MonadBase)
 import           Control.Monad.Morph            (MFunctor (..))
 import           Control.Monad.Trans.Class      (MonadTrans)
-import           Control.Monad.Trans.Control    (MonadBaseControl)
 import           Control.Monad.Trans.Identity   (IdentityT (..))
 import           Control.Monad.Trans.Lift.Local (LiftLocal (..))
-import           Control.Monad.Trans.Resource   (MonadResource (..), ResourceT,
-                                                 runResourceT)
+import           Control.Monad.Trans.Resource   (MonadResource (..), ResourceT)
 import           Data.Aeson                     (FromJSON (..), ToJSON (..))
 import           Data.HashSet                   (fromMap)
 import           Data.Tagged                    (Tagged (Tagged))
@@ -92,7 +90,6 @@ import           Mockable                       (ChannelT, Counter, Distribution
                                                  ThreadId)
 import qualified Prelude
 import           Serokell.Data.Memory.Units     (Byte, fromBytes, toBytes)
-import           Serokell.Util.Lens             (WrappedM (..))
 import           System.Wlog                    (CanLog, HasLoggerName (..),
                                                  LoggerNameBox (..))
 
@@ -190,12 +187,6 @@ instance {-# OVERLAPPABLE #-}
         MonadResource (t m)
   where
     liftResourceT = lift . liftResourceT
-
--- TODO Move this to serokell-util
-instance (MonadBaseControl IO m) => WrappedM (ResourceT m) where
-    type UnwrappedM (ResourceT m) = m
-    packM = runResourceT
-    unpackM = lift
 
 -- TODO Move it to log-warper
 instance CanLog m => CanLog (ResourceT m)

@@ -14,11 +14,11 @@ import           Universum
 
 import           Control.Concurrent           (threadDelay)
 import           Control.Exception            (SomeException)
+import qualified Control.Exception.Lifted     as Lifted
 import           Control.Monad.Trans.Identity (IdentityT (..))
-import           Control.Monad.Trans.Resource (MonadResource, ResourceT)
 import qualified Data.ByteString              as BS (isPrefixOf)
 import           Data.Coerce                  (coerce)
-import           Data.Conduit                 (ConduitM, Source, bracketP, yield)
+import           Data.Conduit                 (ConduitM, Source, yield)
 import qualified Database.RocksDB             as Rocks
 import qualified Ether
 import           Formatting                   (sformat, shown, string, (%))
@@ -67,7 +67,7 @@ instance
 
 -- | Conduit source built from rocks iterator.
 iteratorSource ::
-       forall m i.
+       forall m i a.
        ( MonadRealDB m
        , DBIteratorClass i
        , Bi (IterKey i)
@@ -75,10 +75,11 @@ iteratorSource ::
        )
     => DBTag
     -> Proxy i
-    -> Source (ResourceT m) (IterType i)
-iteratorSource tag _ = do
+    -> (Source m (IterType i) -> m a)
+    -> m a
+iteratorSource tag _ withSrc = do
     putText $ ("Iterator source, prefix " <> show (iterKeyPrefix @i))
-    DB{..} <- view (dbTagToLens tag) <$> lift getNodeDBs
+    DB{..} <- view (dbTagToLens tag) <$> getNodeDBs
 
     let createIter = do
             putText "Creating iter"
@@ -98,9 +99,9 @@ iteratorSource tag _ = do
             produce iter `catch` onExc
             liftIO $ threadDelay $ 1000000 --1s !!!!!
             putText $ "PRODUCED "
-    bracketP createIter releaseIter $ \i -> (action i `catch` onExc)
+    Lifted.bracket createIter releaseIter $ \i -> withSrc (action i `catch` onExc)
  where
-    produce :: Rocks.Iterator -> Source (ResourceT m) (IterType i)
+    produce :: Rocks.Iterator -> Source m (IterType i)
     produce it = do
         putText "ITERINTRY"
         entryStr <- processRes =<< Rocks.iterEntry it
@@ -114,7 +115,7 @@ iteratorSource tag _ = do
     processRes ::
            (Bi (IterKey i), Bi (IterValue i))
         => Maybe (ByteString, ByteString)
-        -> ConduitM () (IterType i) (ResourceT m) (Maybe (IterType i))
+        -> ConduitM () (IterType i) m (Maybe (IterType i))
     processRes Nothing = pure Nothing
     processRes (Just (key, val))
         | BS.isPrefixOf (iterKeyPrefix @i) key = do

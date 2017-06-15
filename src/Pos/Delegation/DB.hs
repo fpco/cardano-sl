@@ -45,7 +45,6 @@ module Pos.Delegation.DB
 import           Universum
 
 import           Control.Lens                 (uses, (%=))
-import           Control.Monad.Trans.Resource (ResourceT)
 import           Data.Conduit                 (Source, mapOutput)
 import qualified Data.HashMap.Strict          as HM
 import qualified Data.HashSet                 as HS
@@ -226,8 +225,12 @@ instance DBIteratorClass DlgTransRevIter where
 --
 -- NB. It's not called @getIssuers@ because we already have issuers (i.e.
 -- block issuers)
-getDelegators :: MonadDBRead m => Source (ResourceT m) (StakeholderId, HashSet StakeholderId)
-getDelegators = mapOutput conv $ dbIterSource GStateDB (Proxy @DlgTransRevIter)
+getDelegators :: MonadDBRead m
+              => (Source m (StakeholderId, HashSet StakeholderId) -> m a)
+              -> m a
+getDelegators withSrc =
+  dbIterSource GStateDB (Proxy @DlgTransRevIter) $
+  withSrc . mapOutput conv
   where
     conv (addressHash -> del, issuers) = (del, HS.map addressHash issuers)
 

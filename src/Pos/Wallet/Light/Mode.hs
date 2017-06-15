@@ -102,7 +102,8 @@ deriving instance MonadDiscovery (LightWalletMode)
 deriving instance MonadGState (LightWalletMode)
 instance Ether.MonadReader' NodeDBs Production => MonadDBRead (LightWalletMode) where
     dbGet a b = LightWalletMode $ dbGet a b
-    dbIterSource t p = hoist (hoist LightWalletMode) $ dbIterSource t p
+    dbIterSource t p withSrc =
+      LightWalletMode $ dbIterSource t p $ unLightWalletMode . withSrc . hoist LightWalletMode
 deriving instance MonadBListener (LightWalletMode)
 deriving instance MonadUpdates (LightWalletMode)
 deriving instance MonadBlockchainInfo (LightWalletMode)

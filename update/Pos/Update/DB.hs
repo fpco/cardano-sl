@@ -39,8 +39,7 @@ module Pos.Update.DB
 
 import           Universum
 
-import           Control.Monad.Trans.Resource (ResourceT)
-import           Data.Conduit                 (Source, mapOutput, runConduitRes, (.|))
+import           Data.Conduit                 (Source, mapOutput, runConduit, (.|))
 import qualified Data.Conduit.List            as CL
 import           Data.Time.Units              (convertUnit)
 import qualified Database.RocksDB             as Rocks
@@ -211,7 +210,9 @@ instance DBIteratorClass PropIter where
     type IterValue PropIter = ProposalState
     iterKeyPrefix = iterationPrefix
 
-proposalSource :: (MonadDBRead m) => Source (ResourceT m) (IterType PropIter)
+proposalSource :: (MonadDBRead m)
+               => (Source m (IterType PropIter) -> m a)
+               -> m a
 proposalSource = dbIterSource GStateDB (Proxy @PropIter)
 
 -- TODO: it can be optimized by storing some index sorted by
@@ -221,7 +222,7 @@ getOldProposals
     :: MonadDBRead m
     => SlotId -> m [UndecidedProposalState]
 getOldProposals slotId =
-    runConduitRes $ mapOutput snd proposalSource .| CL.mapMaybe isOld .| CL.consume
+    proposalSource $ \src -> runConduit $ mapOutput snd src .| CL.mapMaybe isOld .| CL.consume
   where
     isOld (PSUndecided u) | upsSlot u <= slotId = Just u
     isOld _               = Nothing
@@ -232,7 +233,7 @@ getDeepProposals
     :: MonadDBRead m
     => ChainDifficulty -> m [DecidedProposalState]
 getDeepProposals cd =
-    runConduitRes $ mapOutput snd proposalSource .| CL.mapMaybe isDeep .| CL.consume
+    proposalSource $ \src -> runConduit $ mapOutput snd src .| CL.mapMaybe isDeep .| CL.consume
   where
     isDeep e | PSDecided u <- e
              , Just proposalDifficulty <- dpsDifficulty u
@@ -242,7 +243,7 @@ getDeepProposals cd =
 -- | Get states of all active 'UpdateProposal's for given 'ApplicationName'.
 getProposalsByApp :: MonadDBRead m => ApplicationName -> m [ProposalState]
 getProposalsByApp appName =
-    runConduitRes $ mapOutput snd proposalSource .| CL.filter matchesName .| CL.consume
+    proposalSource $ \src -> runConduit $ mapOutput snd src .| CL.filter matchesName .| CL.consume
   where
     matchesName e = appName == (svAppName $ upSoftwareVersion $ psProposal e)
 
@@ -262,8 +263,9 @@ getConfirmedProposals
     :: MonadDBRead m
     => Maybe NumSoftwareVersion -> m [ConfirmedProposalState]
 getConfirmedProposals reqNsv =
-    runConduitRes $
-        dbIterSource GStateDB (Proxy @ConfPropIter) .|
+    dbIterSource GStateDB (Proxy @ConfPropIter) $ \src ->
+    runConduit $
+        src .|
         CL.mapMaybe onItem .|
         CL.consume
   where
@@ -281,22 +283,24 @@ instance DBIteratorClass BVIter where
     type IterValue BVIter = BlockVersionState
     iterKeyPrefix = bvStateIterationPrefix
 
-bvSource :: (MonadDBRead m) => Source (ResourceT m) (IterType BVIter)
+bvSource :: (MonadDBRead m)
+         => (Source m (IterType BVIter) -> m a)
+         -> m a
 bvSource = dbIterSource GStateDB (Proxy @BVIter)
 
 -- | Get all proposed 'BlockVersion's.
 getProposedBVs :: MonadDBRead m => m [BlockVersion]
-getProposedBVs = runConduitRes $ mapOutput fst bvSource .| CL.consume
+getProposedBVs = bvSource $ \src -> runConduit $ mapOutput fst src .| CL.consume
 
 getProposedBVStates :: MonadDBRead m => m [BlockVersionState]
-getProposedBVStates = runConduitRes $ mapOutput snd bvSource .| CL.consume
+getProposedBVStates = bvSource $ \src -> runConduit $ mapOutput snd src .| CL.consume
 
 -- | Get all competing 'BlockVersion's and their states.
 getCompetingBVStates
     :: MonadDBRead m
     => m [(BlockVersion, BlockVersionState)]
 getCompetingBVStates =
-    runConduitRes $ bvSource .| CL.filter (bvsIsConfirmed . snd) .| CL.consume
+    bvSource $ \src -> runConduit $ src .| CL.filter (bvsIsConfirmed . snd) .| CL.consume
 
 ----------------------------------------------------------------------------
 -- Keys ('us' prefix stands for Update System)

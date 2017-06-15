@@ -34,7 +34,7 @@ import           Universum
 
 import           Control.Lens                   (_Wrapped)
 import           Control.Monad.Trans            (MonadTrans (..))
-import           Control.Monad.Trans.Control    (MonadBaseControl)
+import           Control.Monad.Trans.Control    (MonadBaseControl, MonadTransControl)
 import           Control.Monad.Trans.Identity   (IdentityT (..))
 import           Control.Monad.Trans.Lift.Local (LiftLocal (..))
 import           Data.ByteArray                 (convert)
@@ -299,6 +299,7 @@ instance {-# OVERLAPPABLE #-}
     , MonadTrans t
     , LiftLocal t
     , MonadThrow (t m)
+    , MonadTransControl t
     , MonadBaseControl IO (t m)) =>
         MonadBlockDBWrite ssc (t m)
   where

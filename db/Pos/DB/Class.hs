@@ -73,12 +73,10 @@ module Pos.DB.Class
 import           Universum
 
 import           Control.Lens                   (ASetter')
-import           Control.Monad.Morph            (hoist)
 import           Control.Monad.Trans            (MonadTrans (..))
-import           Control.Monad.Trans.Control    (MonadBaseControl)
+import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Lift.Local (LiftLocal (..))
-import           Control.Monad.Trans.Resource   (ResourceT)
-import           Data.Conduit                   (Source)
+import           Data.Conduit                   (Source, transPipe)
 import qualified Database.RocksDB               as Rocks
 import qualified Ether
 import           Serokell.Data.Memory.Units     (Byte)
@@ -126,27 +124,31 @@ class (MonadBaseControl IO m, MonadThrow m) => MonadDBRead m where
         ( DBIteratorClass i
         , Bi (IterKey i)
         , Bi (IterValue i)
-        ) => DBTag -> Proxy i -> Source (ResourceT m) (IterType i)
+        ) => DBTag -> Proxy i -> (Source m (IterType i) -> m a) -> m a
 
     default dbGet :: (MonadTrans t, MonadDBRead n, t n ~ m) =>
         DBTag -> ByteString -> m (Maybe ByteString)
     dbGet tag = lift . dbGet tag
 
-    default dbIterSource :: forall n t i .
+    default dbIterSource :: forall n t i a .
         ( DBIteratorClass i
         , Bi (IterKey i)
         , Bi (IterValue i)
-        , MonadTrans t
+        , MonadTransControl t
         , MonadDBRead n
         , t n ~ m
         )
-        => DBTag -> Proxy i -> Source (ResourceT m) (IterType i)
-    dbIterSource tag _ =
-        let (c :: Source (ResourceT n) (IterType i)) = dbIterSource tag (Proxy @i)
-        in hoist (hoist lift) c
+        => DBTag
+        -> Proxy i
+        -> (Source m (IterType i) -> m a)
+        -> m a
+    dbIterSource tag _ withSrc = do
+      res <- liftWith $ \run ->
+        dbIterSource tag (Proxy @i) $ run . withSrc . transPipe lift
+      restoreT $ return res
 
 instance {-# OVERLAPPABLE #-}
-    (MonadDBRead m, MonadTrans t, MonadThrow (t m), MonadBaseControl IO (t m)) =>
+    (MonadDBRead m, MonadTransControl t, MonadThrow (t m), MonadBaseControl IO (t m)) =>
         MonadDBRead (t m)
 
 -- | Pure interface to the database. Combines read-only interface and
@@ -188,7 +190,7 @@ class MonadDBRead m => MonadDB m where
     dbDelete = lift ... dbDelete
 
 instance {-# OVERLAPPABLE #-}
-    (MonadDB m, MonadTrans t, MonadThrow (t m), MonadBaseControl IO (t m)) =>
+    (MonadDB m, MonadTransControl t, MonadThrow (t m), MonadBaseControl IO (t m)) =>
         MonadDB (t m)
 
 ----------------------------------------------------------------------------

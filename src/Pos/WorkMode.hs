@@ -118,7 +118,8 @@ deriving instance MonadGState (RealMode ssc)
 deriving instance MonadDB (RealMode ssc)
 instance MonadDBRead (RealMode ssc) where
     dbGet a b = RealMode $ dbGet a b
-    dbIterSource t p = hoist (hoist RealMode) $ dbIterSource t p
+    dbIterSource t p withSrc =
+      RealMode $ dbIterSource t p $ unRealMode . withSrc . hoist RealMode
 deriving instance SscHelpersClass ssc => MonadBlockDBWrite ssc (RealMode ssc)
 deriving instance MonadBListener (RealMode ssc)
 -- deriving instance MonadUpdates (RealMode ssc)

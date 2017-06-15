@@ -10,7 +10,7 @@ module Pos.Lrc.Logic
        , RichmenType (..)
        ) where
 
-import           Data.Conduit        (Sink, runConduitPure, runConduitRes, (.|))
+import           Data.Conduit        (Sink, runConduitPure, runConduit, (.|))
 import qualified Data.Conduit.List   as CL
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet        as HS
@@ -32,8 +32,9 @@ findDelRichUsingPrecomp
     => RichmenStake -> Coin -> m RichmenStake
 findDelRichUsingPrecomp precomputed thr = do
     (old, new) <-
-        runConduitRes $
-        getDelegators .|
+        getDelegators $ \src ->
+        runConduit $
+        src .|
         findDelegationStakes isIssuerByAddressHash getEffectiveStake thr
     -- attention: order of new and precomputed is important
     -- we want to use new balances (computed from delegated) of precomputed richmen
