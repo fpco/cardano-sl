@@ -24,7 +24,7 @@ module Pos.Slotting.Util
 
 import           Data.Time.Units        (Millisecond, convertUnit)
 import           Formatting             (build, int, sformat, shown, (%))
-import           Mockable               (Delay, Fork, Mockable, delay, fork)
+import           Mockable               (Concurrently, concurrently, Delay, Mockable, delay)
 import           Serokell.Util          (sec)
 import           System.Wlog            (WithLogger, logDebug, logError, logInfo,
                                          logNotice, modifyLoggerName)
@@ -98,7 +98,7 @@ type OnNewSlot ctx m =
     , MonadSlots m
     , MonadMask m
     , WithLogger m
-    , Mockable Fork m
+    , Mockable Concurrently m
     , Mockable Delay m
     , HasReportingContext ctx
     , HasShutdownContext ctx
@@ -148,19 +148,21 @@ onNewSlotDo
 onNewSlotDo withLogging expectedSlotId startImmediately action = runIfNotShutdown $ do
     curSlot <- waitUntilExpectedSlot
 
-    -- Fork is necessary because action can take more time than duration of slot.
-    when startImmediately $ void $ fork $ action curSlot
+    void
+        (concurrently
+           -- Fork is necessary because action can take more time than duration of slot.
+           (when startImmediately $ void $ action curSlot)
+           -- check for shutdown flag again to not wait a whole slot
+           (runIfNotShutdown $ do
+               let nextSlot = succ curSlot
+               Timestamp curTime <- currentTimeSlotting
+               Timestamp nextSlotStart <- getSlotStartEmpatically nextSlot
+               let timeToWait = nextSlotStart - curTime
+               when (timeToWait > 0) $ do
+                   when withLogging $ logTTW timeToWait
+                   delay timeToWait
+               onNewSlotDo withLogging (Just nextSlot) True action))
 
-    -- check for shutdown flag again to not wait a whole slot
-    runIfNotShutdown $ do
-        let nextSlot = succ curSlot
-        Timestamp curTime <- currentTimeSlotting
-        Timestamp nextSlotStart <- getSlotStartEmpatically nextSlot
-        let timeToWait = nextSlotStart - curTime
-        when (timeToWait > 0) $ do
-            when withLogging $ logTTW timeToWait
-            delay timeToWait
-        onNewSlotDo withLogging (Just nextSlot) True action
   where
     waitUntilExpectedSlot = do
         -- onNewSlotWorker doesn't make sense in recovery phase. Most
