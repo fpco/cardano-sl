@@ -266,7 +266,7 @@ instance Buildable Microsecond where
 ----------------------------------------------------------------------------
 
 instance LiftLocal ResourceT where
-    liftLocal _ l f = hoist (l f)
+    liftLocal _ l f = transResourceT (l f)
 
 instance {-# OVERLAPPABLE #-}
     (MonadResource m, MonadTrans t, Applicative (t m),
